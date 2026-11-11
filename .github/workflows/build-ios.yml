@@ -1,0 +1,97 @@
+name: Convertir HTML en IPA (iOS)
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  ORIENTATION: portrait
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Preparer le HTML
+        id: prep
+        run: |
+          python3 - <<'PY'
+          import base64,glob,json,os,re,subprocess,urllib.request
+          UA={"User-Agent":"Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36"}
+          nat=lambda s:[int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)",s)]
+          def ct(p):
+              try:return int(subprocess.check_output(["git","log","-1","--format=%ct","--",p],text=True).strip() or 0)
+              except Exception:return 0
+          files=glob.glob("*.html")+glob.glob("input/*.html")
+          if not files:raise SystemExit("Aucun fichier .html trouve")
+          src=max(files,key=lambda p:(ct(p),nat(p)))
+          html=open(src,encoding="utf-8").read()
+          get=lambda u:urllib.request.urlopen(urllib.request.Request(u,headers=UA),timeout=30).read()
+          def fl(m):
+              try:
+                  css=get(re.search(r'href="([^"]+)"',m.group(0)).group(1).replace("&amp;","&")).decode()
+                  css=re.sub(r"url\((https://fonts\.gstatic\.com/[^)]+)\)",lambda u:"url(data:font/woff2;base64,"+base64.b64encode(get(u.group(1))).decode()+")",css)
+                  return "<style>"+css+"</style>"
+              except Exception as e:
+                  print("police non integree:",e);return m.group(0)
+          html=re.sub(r'<link[^>]+href="https://fonts\.googleapis\.com/css[^"]*"[^>]*>',fl,html)
+          t=re.search(r"<title>(.*?)</title>",html,re.S|re.I)
+          name=(t.group(1).strip() if t else "") or os.path.splitext(os.path.basename(src))[0]
+          slug=re.sub(r"[^a-z0-9]","",name.lower()) or "app"
+          if slug[0].isdigit():slug="a"+slug
+          safe=re.sub(r"[^A-Za-z0-9_-]+","_",name).strip("_") or "app"
+          bg=re.search(r'<meta[^>]+name="theme-color"[^>]+content="(#[0-9a-fA-F]{6})"',html) or re.search(r"background(?:-color)?\s*:\s*(#[0-9a-fA-F]{6})\b",html)
+          os.makedirs("www",exist_ok=True)
+          open("www/index.html","w",encoding="utf-8").write(html)
+          json.dump({"appId":"com.html2apk."+slug,"appName":name,"webDir":"www","backgroundColor":bg.group(1) if bg else "#000000"},open("capacitor.config.json","w",encoding="utf-8"),ensure_ascii=False)
+          open(os.environ["GITHUB_OUTPUT"],"a").write("apk_name="+safe+"\n")
+          print("HTML utilise:",src,"| App:",name)
+          PY
+
+      - name: Installer Capacitor
+        run: |
+          [ -f package.json ] || npm init -y
+          npm install @capacitor/core@^6.2.0 @capacitor/cli@^6.2.0 @capacitor/ios@^6.2.0
+
+      - name: Generer le projet iOS
+        run: npx cap add ios
+
+      - name: Orientation de l'ecran (iPhone)
+        run: |
+          if [ "$ORIENTATION" = "portrait" ]; then
+            P=ios/App/App/Info.plist
+            /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$P" || true
+            /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$P" || true
+            /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$P" || true
+          fi
+
+      - name: Copier le jeu dans l'app
+        run: npx cap sync ios
+
+      - name: Construire l'app (sans signature)
+        run: |
+          cd ios/App
+          if [ -d App.xcworkspace ]; then TARGET="-workspace App.xcworkspace"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos \
+            -archivePath "$PWD/build/App.xcarchive" clean archive \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Fabriquer le fichier .ipa
+        run: |
+          cd ios/App
+          mkdir -p Payload
+          cp -R build/App.xcarchive/Products/Applications/App.app Payload/
+          zip -qr "$GITHUB_WORKSPACE/${{ steps.prep.outputs.apk_name }}.ipa" Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.prep.outputs.apk_name }}-ipa
+          path: ${{ steps.prep.outputs.apk_name }}.ipa
