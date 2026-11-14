@@ -77,6 +77,7 @@ body.lb #lb,body.cos #cos{display:flex}
 #lbList li:nth-child(3) b{color:#ffb98a}
 #lbList li.me{outline:2px solid #8ee3b0;background:#14324a}
 #lbList li.apart{margin-top:8px}
+#lbList li.msg{justify-content:center;color:#aebbd1}
 #nm{display:none;position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:5}
 body.menu:not(.lb) #nm{display:block}
 #nameIn{flex:0 1 132px;min-width:0;font:inherit;font-size:.9rem;padding:8px 12px;border-radius:12px;border:2px solid rgba(255,255,255,.18);background:rgba(11,26,41,.7);color:#fff;outline:none;user-select:text;-webkit-user-select:text}
@@ -326,7 +327,7 @@ body.brk #board{cursor:crosshair}
 <small class="bn">2 utilisations maximum de chaque boost par partie</small>
 <div class="bv" id="bVid"><div class="bt"><b>Pubs gratuites</b><small>Regarde 100 vidéos pour supprimer les pubs du jeu</small></div><div class="bvbar"><i id="vidBar"></i></div><div class="bvrow"><span id="vidTxt">0 / 100</span><button class="bgo" id="vidGo">Regarder une vidéo</button></div></div>
 </div></div>
-<div id="pay"><div class="card"><button id="payX" aria-label="Fermer"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="pl"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="12" width="36" height="24" rx="6" fill="#3a2800" stroke="none"/><text x="24" y="29.5" text-anchor="middle" font-size="13" font-weight="700" font-family="Fredoka,system-ui,sans-serif" fill="#ffd45e" stroke="none">PUB</text><circle cx="24" cy="24" r="19" fill="none" stroke="#ff4d6a" stroke-width="4.5"/><path d="M10.5 37.5L37.5 10.5" fill="none" stroke="#ff4d6a" stroke-width="4.5" stroke-linecap="round"/></svg></div><h3>Supprimer les pubs</h3><p>Plus aucune pub dans le jeu, en un seul paiement de 4 €.</p><button id="payGo">Payer 4 €</button><span id="payNote"></span></div></div>
+<div id="pay"><div class="card"><button id="payX" aria-label="Fermer"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="pl"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true"><rect x="6" y="12" width="36" height="24" rx="6" fill="#3a2800" stroke="none"/><text x="24" y="29.5" text-anchor="middle" font-size="13" font-weight="700" font-family="Fredoka,system-ui,sans-serif" fill="#ffd45e" stroke="none">PUB</text><circle cx="24" cy="24" r="19" fill="none" stroke="#ff4d6a" stroke-width="4.5"/><path d="M10.5 37.5L37.5 10.5" fill="none" stroke="#ff4d6a" stroke-width="4.5" stroke-linecap="round"/></svg></div><h3>Supprimer les pubs</h3><p>Plus aucune pub dans le jeu, en un seul paiement de <b id="payPrice">4 €</b>.</p><button id="payGo">Payer 4 €</button><span id="payNote"></span></div></div>
 <div id="brk"><span id="brkT">Touche le bloc à casser</span><button id="brkX">Annuler</button></div>
 <div id="offer"><button id="offerGo"><i>Pub</i><span id="offerTxt"></span></button><button id="offerX" aria-label="Fermer"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
 <div id="ad"><video id="adv" playsinline webkit-playsinline></video><div id="adslot"></div><div id="adsim"><b>PUB</b><span>Simulation, <i id="adn">4</i> s</span><small id="aderr"></small></div></div>
@@ -350,7 +351,7 @@ const SK={
  ruby:{n:"Rubis",p:500,cls:"gem",all:1,f:.88,r:"Peu commun",rc:"#ff8aa0"},
  candy:{n:"Bonbon",p:250,cls:"sk sk-candy",all:1,f:1,r:"Commun",rc:"#c4e88a"}
 };
-const SKO=["prism","gold","ice","ruby","candy"],ALLSK=["gem","sk","sk-candy","sk-ice","sk-gold","sk-prism"];
+const SKO=["candy","ruby","ice","gold","prism"],ALLSK=["gem","sk","sk-candy","sk-ice","sk-gold","sk-prism"];
 const W3=[255,255,255],K3=[0,0,0],METAL=["#b87a45","#c9824b","#d39a3a","#c4c8d0","#a9b4c4","#e6b422","#f0c040","#e9e2d2","#f5d060","#fff0a0"];
 const rgb=h=>{const n=parseInt(h.slice(1),16);return[n>>16,(n>>8)&255,n&255];};
 const mxa=(a,b,t)=>a.map((x,i)=>Math.round(x+(b[i]-x)*t));
@@ -425,6 +426,7 @@ function clearTiles(){board.querySelectorAll(".tile").forEach(e=>e.remove());}
 function updScore(){
   best=Math.max(best,score);
   try{localStorage.setItem("nc_best",best)}catch(e){}
+  lbSoon();
   $("sc").textContent=fmt(score);$("all").textContent=fmt(best);$("undo").disabled=!hist.length;
 }
 function hasMove(){
@@ -540,6 +542,7 @@ function defeat(){
 }
 const RATE=2000;
 function showConv(){
+  lbSync();
   const add=Math.max(0,Math.floor(score/RATE)-paid),sc=Math.max(0,score-paidS);
   if(add>0){coins+=add;paid+=add;try{localStorage.setItem("nc_coins",coins)}catch(e){}}
   paidS=Math.max(paidS,score);$("cvS").textContent=fmt(sc);
@@ -856,15 +859,59 @@ function lbRow(rank,r){
   a.textContent=rank;b.textContent=r.n;c.textContent=fmt(r.s);
   li.append(a,b,c);return li;
 }
-function renderLB(){
-  const rows=FAKE.map(([n,s])=>({n,s}));
-  if(best>0)rows.push({n:pseudo||"Toi",s:best,me:true});
-  rows.sort((a,b)=>b.s-a.s);
-  const ol=$("lbList");ol.textContent="";
-  rows.slice(0,10).forEach((r,i)=>ol.append(lbRow(i+1,r)));
-  const k=rows.findIndex(r=>r.me);
-  if(k>=10){const li=lbRow(k+1,rows[k]);li.classList.add("apart");ol.append(li);}
+/* ===== Classement en ligne (serveur Cloudflare) ===== */
+const LB_URL="https://numberconnect-api.gehin-cyprien.workers.dev";
+const LB_FILL=false;   // true = complète avec les faux joueurs ci-dessus tant qu'il y a moins de 10 vrais joueurs
+let devId="";try{devId=localStorage.getItem("nc_id")||"";}catch(e){}
+if(!devId){
+  const a=new Uint8Array(16);
+  if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else a.forEach((_,i)=>{a[i]=Math.random()*256;});
+  devId=Array.from(a).map(x=>x.toString(16).padStart(2,"0")).join("");
+  try{localStorage.setItem("nc_id",devId)}catch(e){}
 }
+function lbPost(name,bst){
+  return fetch(LB_URL+"/submit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:devId,name:name,best:bst})})
+    .then(r=>r.json().then(j=>({s:r.status,j:j})));
+}
+let lbBusy=false;
+let lbSent=-1,lbT=0,renaming=false;
+function lbSync(){
+  if(!pseudo||lbBusy||renaming)return;
+  lbBusy=true;
+  const b=best;let ok=false;
+  lbPost(pseudo,b).then(r=>{ok=r.s>=200&&r.s<300;if(ok)lbSent=Math.max(lbSent,b);}).catch(()=>{}).then(()=>{lbBusy=false;if(ok&&best>lbSent)lbSoon();});
+}
+function lbSoon(){                      // envoie le record dès qu'il est battu, sans attendre la fin de la partie (au plus toutes les 2 s)
+  if(!pseudo||renaming||lbT||best<=Math.max(lbSent,0))return;
+  lbT=setTimeout(()=>{lbT=0;if(best>lbSent)lbSync();},2000);
+}
+let lbReq=0;
+function renderLB(quiet){
+  const ol=$("lbList"),my=++lbReq;
+  const msg=t=>{ol.textContent="";const li=document.createElement("li");li.className="msg";li.textContent=t;ol.append(li);};
+  if(!quiet)msg("Chargement…");
+  Promise.all([
+    fetch(LB_URL+"/top",{cache:"no-store"}).then(r=>r.json()),
+    fetch(LB_URL+"/me?id="+devId,{cache:"no-store"}).then(r=>r.json()).catch(()=>({me:null}))
+  ]).then(([t,m])=>{
+    if(my!==lbReq)return;
+    if(!t||!t.top)throw 0;
+    const me=m&&m.me;let found=false;
+    const rows=t.top.map(r=>{const mine=!found&&!!me&&r.name===me.name&&r.best===me.best;if(mine)found=true;return{n:r.name,s:r.best,me:mine};});
+    if(LB_FILL&&rows.length<10)FAKE.forEach(([n,s])=>{if(rows.length<10)rows.push({n:n,s:s});});
+    rows.sort((a,b)=>b.s-a.s);
+    ol.textContent="";
+    if(!rows.length&&!(me&&me.best>0))return msg("Aucun score pour le moment. Sois le premier !");
+    rows.forEach((r,i)=>ol.append(lbRow(i+1,r)));
+    if(me&&me.best>0&&!found){const li=lbRow(me.rank,{n:me.name,s:me.best,me:true});li.classList.add("apart");ol.append(li);}
+  }).catch(()=>{
+    if(my!==lbReq||quiet)return;
+    msg("Classement indisponible (pas de connexion).");
+    if(best>0){const li=lbRow("—",{n:pseudo||"Toi",s:best,me:true});li.classList.add("apart");ol.append(li);}
+  });
+}
+setTimeout(lbSync,1500);
+setInterval(()=>{if(document.body.classList.contains("lb")&&!document.hidden)renderLB(true);},4000);   // classement en direct
 function openMn(){if(document.body.classList.contains("lost"))return;$("mn").classList.add("on");$("mnBtn").setAttribute("aria-expanded","true");}
 function closeMn(){$("mn").classList.remove("on");$("mnBtn").setAttribute("aria-expanded","false");}
 $("mnBtn").onclick=()=>$("mn").classList.contains("on")?closeMn():openMn();
@@ -925,26 +972,57 @@ $("vidGo").onclick=()=>{if(adBusy||noAds)return;playAd(ok=>{if(!ok)toast(ADS.err
    PAIEMENT : pas encore branché. Dans l'appli, appeler ici Google Play Billing / StoreKit
    (produit "remove_ads", achat unique). Quand le paiement est confirmé -> grantNoAds().
    L'appli pourra aussi appeler window.onNativePay("remove_ads","ok"). */
+/* ===== Pont Google Play Billing (plugin Capacitor @capgo/native-purchases) =====
+   Actif seulement dans l'appli Android installée depuis Google Play. Ailleurs (web, APK de test) : mode test. */
+const PAY_ID="remove_ads";   // identifiant du produit créé dans la Play Console
+let PRICE_STR="4 €";         // remplacé par le vrai prix renvoyé par Google Play
+(function(){
+  const C=window.Capacitor;
+  if(!(C&&C.isNativePlatform&&C.isNativePlatform()&&C.getPlatform&&C.getPlatform()==="android"))return;
+  const call=(m,o)=>{const P=C.Plugins&&C.Plugins.NativePurchases;return(P&&P[m])?P[m](o):C.nativePromise("NativePurchases",m,o||{});};
+  const okState=p=>p&&(p.purchaseState==="PURCHASED"||p.purchaseState==="1"||p.purchaseState===1);
+  const msg=e=>String((e&&(e.message||e.errorMessage||e.code))||e||"");
+  window.NativePay={
+    buy(id){
+      call("purchaseProduct",{productIdentifier:id,productType:"inapp",quantity:1})
+        .then(t=>window.onNativePay(id,(!t||t.purchaseState===undefined||okState(t))?"ok":"pending"))
+        .catch(e=>window.onNativePay(id,/cancel/i.test(msg(e))?"cancel":"error",msg(e)));
+    },
+    price(id){return call("getProduct",{productIdentifier:id,productType:"inapp"}).then(r=>(r&&r.product&&r.product.priceString)||"");},
+    restore(id){return call("getPurchases",{productType:"inapp"}).then(r=>((r&&r.purchases)||[]).some(p=>p.productIdentifier===id&&okState(p)));}
+  };
+})();
 const PAY_TEST=!(window.NativePay&&window.NativePay.buy);
 function applyNoAds(){
   document.body.classList.toggle("noads",noAds);
   $("mnNoAds").classList.toggle("done",noAds);
-  $("noAdsSub").textContent=noAds?"Activé ✓":"4 € · paiement unique";
+  $("noAdsSub").textContent=noAds?"Activé ✓":PRICE_STR+" · paiement unique";
   if(noAds)hideOffer();
 }
 function openPay(){$("payNote").textContent=PAY_TEST?"Mode test : aucun vrai paiement n’est effectué.":"";$("pay").classList.add("on");}
 function closePay(){$("pay").classList.remove("on");}
 function grantNoAds(){noAds=true;try{localStorage.setItem("nc_noads","1")}catch(e){}closePay();applyNoAds();toast("Pubs supprimées. Merci !");}
+let payBusy=false;
 function purchaseNoAds(){
-  if(!PAY_TEST){window.NativePay.buy("remove_ads");return;}
+  if(!PAY_TEST){if(payBusy)return;payBusy=true;$("payGo").disabled=true;window.NativePay.buy(PAY_ID);return;}
   grantNoAds();                                  // MODE TEST : accorde directement, sans paiement
 }
-window.onNativePay=function(id,status){if(id==="remove_ads"&&status==="ok")grantNoAds();};
+window.onNativePay=function(id,status,info){
+  payBusy=false;$("payGo").disabled=false;
+  if(id!==PAY_ID)return;
+  if(status==="ok")grantNoAds();
+  else if(status==="pending")toast("Paiement en attente de confirmation : les pubs seront retirées dès qu'il sera validé.");
+  else if(status==="error")toast("Paiement impossible"+(info?" : "+info:"")+".");
+};
 $("mnNoAds").onclick=()=>{closeMn();if(noAds){toast("Les pubs sont déjà supprimées");return;}openPay();};
 $("payGo").onclick=purchaseNoAds;
 $("payX").onclick=closePay;
 $("pay").onclick=e=>{if(e.target===$("pay"))closePay();};
 applyNoAds();
+if(!PAY_TEST){
+  window.NativePay.price(PAY_ID).then(p=>{if(p){PRICE_STR=p;applyNoAds();$("payPrice").textContent=p;$("payGo").textContent="Payer "+p;}}).catch(()=>{});
+  if(!noAds)window.NativePay.restore(PAY_ID).then(has=>{if(has)grantNoAds();}).catch(()=>{});
+}
 $("cosBack").onclick=()=>document.body.classList.remove("cos");
 const CV=[4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536],packT={};
 function saveCoins(){try{localStorage.setItem("nc_coins",coins)}catch(e){}}
@@ -1012,14 +1090,36 @@ function validateName(){
   const v=ni.value.trim().slice(0,14);
   ni.blur();
   if(!v||v===pseudo){ni.value=pseudo;return;}
-  if(!pseudo){setName(v);renderLB();flashOk();return;}
+  if(!pseudo){
+    lbPost(v,best).then(r=>{
+      if(r.s===400&&r.j&&r.j.error==="name"){toast("Ce pseudo n'est pas autorisé.");ni.value="";return;}
+      setName(v);renderLB();flashOk();
+    }).catch(()=>{setName(v);renderLB();flashOk();});
+    return;
+  }
   pend=v;$("dlg").classList.add("on");
 }
 $("nameOk").addEventListener("mousedown",e=>e.preventDefault());
 $("nameOk").onclick=validateName;
 ni.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();validateName();}});
 $("dno").onclick=()=>{$("dlg").classList.remove("on");ni.value=pseudo;};
-$("dyes").onclick=()=>{$("dlg").classList.remove("on");setName(pend);resetAll();renderLB();flashOk();};
+function applyRename(){lbSent=-1;renaming=false;setName(pend);resetAll();renderLB();flashOk();}
+function genId(){
+  const a=new Uint8Array(16);
+  if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else a.forEach((_,i)=>{a[i]=Math.random()*256;});
+  return Array.from(a).map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+$("dyes").onclick=()=>{
+  $("dlg").classList.remove("on");
+  const oldId=devId;
+  renaming=true;
+  devId=genId();                       // nouvelle identité : l'ancienne ligne du classement n'est pas touchée
+  const keep=()=>{try{localStorage.setItem("nc_id",devId)}catch(e){}};
+  lbPost(pend,0).then(r=>{
+    if(r.s===400&&r.j&&r.j.error==="name"){devId=oldId;renaming=false;toast("Ce pseudo n'est pas autorisé.");ni.value=pseudo;return;}
+    keep();applyRename();
+  }).catch(()=>{keep();applyRename();});   // hors connexion : le pseudo change quand même, la synchro se fera plus tard
+};
 function dropIn(){
   if(busy)return;
   busy=true;
