@@ -886,6 +886,19 @@ function lbSoon(){                      // envoie le record dès qu'il est battu
   lbT=setTimeout(()=>{lbT=0;if(best>lbSent)lbSync();},2000);
 }
 let lbReq=0;
+const normName=s=>String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+const prevNames=()=>{try{return JSON.parse(localStorage.getItem("nc_prev")||"[]")}catch(e){return[]}};
+function rememberPrev(n){if(!n)return;const a=prevNames(),k=normName(n);if(!a.includes(k)){a.push(k);try{localStorage.setItem("nc_prev",JSON.stringify(a))}catch(e){}}}
+function nameTaken(v){                 // le pseudo (ou un pseudo semblable) est-il déjà dans le classement ?
+  const k=normName(v);
+  const ask=fetch(LB_URL+"/top",{cache:"no-store"}).then(r=>r.json()).then(t=>((t&&t.top)||[]).some(r=>normName(r.name)===k)).catch(()=>false);
+  return Promise.race([ask,new Promise(r=>setTimeout(()=>r(false),5000))]);   // hors connexion : on ne peut pas vérifier, le serveur tranchera
+}
+function dedupeRows(rows){             // un même pseudo ne s'affiche qu'une seule fois (on garde le meilleur score)
+  const seen=new Map();
+  rows.forEach(r=>{const k=normName(r.n),o=seen.get(k);if(!o||r.s>o.s||(r.s===o.s&&r.me))seen.set(k,r);});
+  return [...seen.values()];
+}
 function renderLB(quiet){
   const ol=$("lbList"),my=++lbReq;
   const msg=t=>{ol.textContent="";const li=document.createElement("li");li.className="msg";li.textContent=t;ol.append(li);};
@@ -897,8 +910,9 @@ function renderLB(quiet){
     if(my!==lbReq)return;
     if(!t||!t.top)throw 0;
     const me=m&&m.me;let found=false;
-    const rows=t.top.map(r=>{const mine=!found&&!!me&&r.name===me.name&&r.best===me.best;if(mine)found=true;return{n:r.name,s:r.best,me:mine};});
+    let rows=t.top.map(r=>{const mine=!found&&!!me&&r.name===me.name&&r.best===me.best;if(mine)found=true;return{n:r.name,s:r.best,me:mine};});
     if(LB_FILL&&rows.length<10)FAKE.forEach(([n,s])=>{if(rows.length<10)rows.push({n:n,s:s});});
+    rows=dedupeRows(rows);
     rows.sort((a,b)=>b.s-a.s);
     ol.textContent="";
     if(!rows.length&&!(me&&me.best>0))return msg("Aucun score pour le moment. Sois le premier !");
@@ -1131,24 +1145,37 @@ const ni=$("nameIn");ni.value=pseudo;
 function setName(v){pseudo=v;ni.value=v;try{localStorage.setItem("nc_name",v)}catch(e){}}
 function resetAll(){best=0;try{localStorage.removeItem("nc_best")}catch(e){}newGame();}
 function flashOk(){const b=$("nameOk");b.textContent="Validé";b.classList.add("done");setTimeout(()=>{b.textContent="Valider";b.classList.remove("done");},1200);}
-function validateName(){
-  const v=ni.value.trim().slice(0,14);
-  ni.blur();
-  if(!v||v===pseudo){ni.value=pseudo;return;}
+const isTaken=r=>r.s===409||!!(r.j&&(r.j.error==="taken"||r.j.error==="exists"));
+function proceedName(v){
   if(!pseudo){
     lbPost(v,best).then(r=>{
       if(r.s===400&&r.j&&r.j.error==="name"){toast("Ce pseudo n'est pas autorisé.");ni.value="";return;}
+      if(isTaken(r)){toast("Ce pseudo est déjà pris.");return;}
       setName(v);renderLB();flashOk();
     }).catch(()=>{setName(v);renderLB();flashOk();});
     return;
   }
   pend=v;$("dlg").classList.add("on");
 }
+function validateName(){
+  const v=ni.value.trim().slice(0,14);
+  ni.blur();
+  if(!v||v===pseudo){ni.value=pseudo;return;}
+  const k=normName(v);
+  if(pseudo&&k===normName(pseudo)){toast("C’est déjà ton pseudo.");ni.value=pseudo;return;}
+  if(prevNames().includes(k)){toast("Tu as déjà utilisé ce pseudo.");return;}
+  const b=$("nameOk");b.textContent="…";
+  nameTaken(v).then(taken=>{
+    b.textContent="Valider";
+    if(taken){toast("Ce pseudo est déjà pris.");return;}
+    proceedName(v);
+  });
+}
 $("nameOk").addEventListener("mousedown",e=>e.preventDefault());
 $("nameOk").onclick=validateName;
 ni.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();validateName();}});
 $("dno").onclick=()=>{$("dlg").classList.remove("on");ni.value=pseudo;};
-function applyRename(){lbSent=-1;renaming=false;setName(pend);resetAll();renderLB();flashOk();}
+function applyRename(){lbSent=-1;renaming=false;rememberPrev(pseudo);setName(pend);resetAll();renderLB();flashOk();}
 function genId(){
   const a=new Uint8Array(16);
   if(window.crypto&&crypto.getRandomValues)crypto.getRandomValues(a);else a.forEach((_,i)=>{a[i]=Math.random()*256;});
@@ -1162,6 +1189,7 @@ $("dyes").onclick=()=>{
   const keep=()=>{try{localStorage.setItem("nc_id",devId)}catch(e){}};
   lbPost(pend,0).then(r=>{
     if(r.s===400&&r.j&&r.j.error==="name"){devId=oldId;renaming=false;toast("Ce pseudo n'est pas autorisé.");ni.value=pseudo;return;}
+    if(isTaken(r)){devId=oldId;renaming=false;toast("Ce pseudo est déjà pris.");ni.value=pseudo;return;}
     keep();applyRename();
   }).catch(()=>{keep();applyRename();});   // hors connexion : le pseudo change quand même, la synchro se fera plus tard
 };
