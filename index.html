@@ -349,7 +349,7 @@ body.brk #board{cursor:crosshair}
 <div id="set"><div class="card"><button id="setX" aria-label="Fermer"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h3>Paramètres</h3><div class="row"><span>Son</span><button id="sndT" role="switch" aria-checked="true" aria-label="Son"><i></i></button></div>
 <div class="vrow" id="vrow"><input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume"><b id="volV"></b></div>
 <div class="row"><span>Musique</span><button id="musT" role="switch" aria-checked="true" aria-label="Musique"><i></i></button></div>
-<div class="row"><span>Vibrations</span><button id="vibT" role="switch" aria-checked="true" aria-label="Vibrations"><i></i></button></div>
+<div class="row"><span id="vibL">Vibrations</span><button id="vibT" role="switch" aria-checked="true" aria-label="Vibrations"><i></i></button></div>
 <button class="sbtn" id="tutoBtn">Tutoriel</button></div></div>
 <div id="tuto"><div class="card"><h3>Comment jouer</h3><div id="tutoBody"></div><button class="go" id="tutoGo">Compris</button></div></div>
 <div id="blk"><div class="card"><h3 id="blkT">Accès bloqué</h3><p id="blkP"></p><button class="go" id="blkGo">Réessayer</button></div></div>
@@ -1066,7 +1066,7 @@ document.addEventListener("pointerdown",()=>setTimeout(musStart,60));
 document.addEventListener("visibilitychange",()=>{if(!AC)return;if(document.hidden){AC.suspend&&AC.suspend();}else{AC.resume&&AC.resume().then(()=>{musNext=Math.max(musNext,AC.currentTime+.1);});}});
 function vib(res){   // vibre sur la prochaine double-croche de la musique
   if(!vibOn||!navigator.vibrate)return;
-  const big=res>=512,pat=big?[22,45,22]:[18];
+  const big=res>=512,pat=big?[45,50,45]:[40];   // impulsions assez longues pour être senties (en dessous de ~30 ms, beaucoup de téléphones ne vibrent pas)
   const d=qd().d*1000;
   setTimeout(()=>{try{navigator.vibrate(pat)}catch(e){}},d);
 }
@@ -1155,8 +1155,9 @@ $("vol").addEventListener("input",()=>{volPct=+$("vol").value;applyVol();try{loc
 $("vol").addEventListener("change",()=>{if(soundOn){unlock();note(4,0,.15);}});
 function applyTog(){[["musT",musOn],["vibT",vibOn]].forEach(([i,v])=>{const b=$(i);b.setAttribute("aria-checked",v);b.classList.toggle("on",v);});}
 $("musT").onclick=()=>{musOn=!musOn;try{localStorage.setItem("nc_mus",musOn?"1":"0")}catch(e){}applyTog();unlock();musSched();};
-$("vibT").onclick=()=>{vibOn=!vibOn;try{localStorage.setItem("nc_vib",vibOn?"1":"0")}catch(e){}applyTog();if(vibOn&&navigator.vibrate)navigator.vibrate(30);};
+$("vibT").onclick=()=>{vibOn=!vibOn;try{localStorage.setItem("nc_vib",vibOn?"1":"0")}catch(e){}applyTog();if(vibOn&&navigator.vibrate)navigator.vibrate(60);};
 applyTog();
+if(!navigator.vibrate){$("vibT").disabled=true;$("vibT").style.opacity=.4;$("vibL").textContent="Vibrations (non pris en charge)";$("vibL").style.fontSize=".85rem";}
 applySnd();applyVol();
 $("gear").onclick=openSet;
 $("setX").onclick=closeSet;
